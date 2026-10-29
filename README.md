@@ -138,8 +138,8 @@ expect a root deployment, rather than a nested path such as `/colombo-atlas/`.
 
 For rebuilding the models or adjusting their details, see [Working with the models](docs/MODELS.md).
 
-The live site runs on Cloudflare Pages, with R2 serving the larger map and download
-files. See [Deploying Colombo Atlas](docs/DEPLOYMENT.md) for the setup and update command.
+The live site runs on Cloudflare Pages; the larger map and download files come from
+the VPS's Garage object store. See [Deploying Colombo Atlas](docs/DEPLOYMENT.md) for the setup and update command.
 
 ## Credits and accuracy
 

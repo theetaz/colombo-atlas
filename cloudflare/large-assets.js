@@ -1,4 +1,24 @@
-// Only files listed by the build can be read from the private bucket.
+// The large files live in the "colombo-atlas-assets" bucket on the VPS's Garage store, served
+// read-only at LARGE_ASSETS_ORIGIN. An R2 binding named LARGE_ASSETS still takes precedence.
+export const DEFAULT_LARGE_ASSETS_ORIGIN = 'https://colombo-assets.prabhavalabs.com';
+
+// A bucket-like reader over HTTP: get(key, { range }) resolves to { body } or null when missing.
+export function httpBucket(origin, fetcher = globalThis.fetch) {
+  const base = origin.replace(/\/+$/, '');
+  return {
+    async get(key, options) {
+      const url = `${base}/${key.split('/').map(encodeURIComponent).join('/')}`;
+      const range = options?.range;
+      const headers = range ? { Range: `bytes=${range.offset}-${range.offset + range.length - 1}` } : {};
+      const response = await fetcher(url, { headers });
+      if (response.status === 404) return null;
+      if (!(range ? response.status === 206 : response.ok)) throw new Error(`Asset origin answered ${response.status}`);
+      return { body: response.body };
+    },
+  };
+}
+
+// Only files listed by the build can be read from the bucket.
 export function createAssetHandler(assets) {
   return {
     async fetch(request, env, context) {
@@ -45,7 +65,8 @@ export function createAssetHandler(assets) {
           const cached = await cache.match(cacheKey);
           if (cached) return new Response(cached.body, { headers });
         }
-        const object = await env.LARGE_ASSETS.get(asset.key, range ? { range } : undefined);
+        const bucket = env.LARGE_ASSETS ?? httpBucket(env.LARGE_ASSETS_ORIGIN || DEFAULT_LARGE_ASSETS_ORIGIN);
+        const object = await bucket.get(asset.key, range ? { range } : undefined);
         if (!object) return new Response('Asset not found', { status: 404 });
         if (range) {
           headers.set('Content-Range', `bytes ${range.offset}-${range.offset + range.length - 1}/${asset.size}`);
