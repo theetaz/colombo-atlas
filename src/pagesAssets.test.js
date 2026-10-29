@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAssetHandler, parseRange } from '../cloudflare/large-assets.js';
+import { createAssetHandler, httpBucket, parseRange } from '../cloudflare/large-assets.js';
 
 const bytes = new Uint8Array([1, 2, 3, 4, 5]);
 const descriptor = { key: 'version/model.zip', sha256: 'abc123', size: bytes.length, contentType: 'application/zip', filename: 'model.zip' };
@@ -81,4 +81,24 @@ test('missing or unavailable storage returns an error instead of an HTML success
   const response = await handler.fetch(request(), env, {});
   assert.equal(response.status, 503);
   assert.equal(response.headers.get('Retry-After'), '30');
+});
+
+test('httpBucket reads whole objects and ranges from the asset origin', async () => {
+  const calls = [];
+  const fetcher = async (url, init) => {
+    calls.push([url, init.headers.Range]);
+    if (url.endsWith('/missing.zip')) return new Response(null, { status: 404 });
+    return init.headers.Range ? new Response('bcd', { status: 206 }) : new Response('abcde', { status: 200 });
+  };
+  const bucket = httpBucket('https://assets.example.test/', fetcher);
+  assert.equal(await new Response((await bucket.get('a b/model.zip')).body).text(), 'abcde');
+  assert.equal(await new Response((await bucket.get('model.zip', { range: { offset: 1, length: 3 } })).body).text(), 'bcd');
+  assert.equal(await bucket.get('missing.zip'), null);
+  assert.deepEqual(calls, [
+    ['https://assets.example.test/a%20b/model.zip', undefined],
+    ['https://assets.example.test/model.zip', 'bytes=1-3'],
+    ['https://assets.example.test/missing.zip', undefined],
+  ]);
+  const failing = httpBucket('https://assets.example.test', async () => new Response(null, { status: 200 }));
+  await assert.rejects(failing.get('model.zip', { range: { offset: 0, length: 2 } }), /answered 200/);
 });

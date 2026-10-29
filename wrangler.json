@@ -3,7 +3,7 @@
   "name": "colombo-atlas",
   "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-09-01",
-  "r2_buckets": [
-    { "binding": "LARGE_ASSETS", "bucket_name": "colombo-atlas-assets" }
-  ]
+  "vars": {
+    "LARGE_ASSETS_ORIGIN": "https://colombo-assets.prabhavalabs.com"
+  }
 }
